@@ -1,267 +1,257 @@
-%macro PrintInt 1
+    .intel_syntax noprefix
+	.global main
 
-        push ebx
-        mov ebx, %1
-        call printInt
-        pop ebx
+    .section .text
 
-%endmacro
+//--------------------------------
+//
+// Preserves ebx, prints int.
+//
+//--------------------------------
+.macro print_int_guarded what
+    push ebx
+    mov ebx, \what
+    call print_int
+    pop ebx
+.endm
 
-%macro PrintPrefix 1
+//-------------------------------
+//
+// Preserves ecx, prints string
+//
+//-------------------------------
+.macro print_prefix what
+    push ecx
+    mov ecx, \what
+    call print_string
+    pop ecx
+.endm
 
-        push ecx
-        mov ecx, %1
-        call printStr
-        pop ecx
 
-%endmacro
-
-section	.text
-	global _start       ;must be declared for using gcc
-_start:     ;tell linker entry point
-    mov eax, msg1
+main:
+    mov eax, offset string_to_display
     push eax
-    mov eax, 5671230
+    mov eax, 1234
     push eax
-    mov eax, 5671230
+    mov eax, 1234
     push eax
-    mov eax, 5671230
+    mov eax, 1234
     push eax
-    mov eax, 5671230
+    mov eax, 1234
     push eax
     mov eax, '$'
     push eax
     mov eax, '$'
     push eax
-    mov eax, msg
+    mov eax, offset test_str
     push eax
-    call my_printf 
-    
-    mov	eax, 1	    ;system call number (sys_exit)
-	int	0x80        ;call kernel
+    call my_printf
 
+    mov	eax, 1
+    int	0x80
 
-; printf(char* tmp_string, args...)
-; In 32-bit all arguments are passed using stack
-
-; In 64-bit we would need to save return adress, than put args
-; from registers on stack, and then reestablish return adress 
-
-; my_printf supports %d, %c, %s, %x, %b
+//;-------------------------------------------------------------------------
+//; printf(char* tmp_string, args...)
+//; Uses 32-bit calling convention.
+//;
+//; Supports %d, %c, %s, %x, %b formats.
+//;------------------------------------------------------------------------
 my_printf:
-        push    ebp
-        mov     ebp,esp
-        
+    push ebp
+    mov ebp, esp
+
+    .equ TEMP_STR,                  0x08 // First argument (for the function)
+    .equ FIRST_TEMP_ARG, TEMP_STR + 0x04
+
+    push ebx
+
+    mov ebx, [ebp+TEMP_STR]
+    lea edx, dword ptr [ebp+FIRST_TEMP_ARG]
+
+    process_loop:
+        // End of string
+        cmp byte ptr [ebx], 0
+        je end
+        // Some argument
+        cmp byte ptr [ebx], '%'
+        je switch_case
+        // Default
+        UNDEFINED:
+            mov ecx, ebx
+            call print_char
+            jmp finish_loop
+
+    switch_case:
+        add ebx, 1
+        xor eax, eax
+        mov al, byte [ebx]
+        sub eax, 'b'
+        jmp [jump_table + eax * 4]
+
+
+    process_char:
+        mov ecx, edx // Get current argument address
+        add edx, 4   // Shift current argument ptr
+
+        call print_char
+        jmp finish_loop
+
+
+    process_binary:
+        mov ecx, edx
+        add edx, 4
+
+        // Printing default prefix (like 0b... , 0x ...)
+        print_prefix bin_prefix
+
+        // Chosing system base (2, 8, 10, 16 ... ?)
+        print_int_guarded 2
+
+        jmp finish_loop
+
+
+    process_octal:
+        mov ecx, edx
+        add edx, 4
+
+        print_prefix oct_prefix
+
+        print_int_guarded 8
+
+        jmp finish_loop
+
+
+    process_decimal:
+        mov ecx, edx
+        add edx, 4
+
+        print_int_guarded 10
+
+        jmp finish_loop
+
+    process_hex:
+        mov ecx, edx
+        add edx, 4
+
+        print_prefix hex_prefix
+
+        print_int_guarded 16
+
+        jmp finish_loop
+
+
+    process_string:
+        mov ecx, [edx]
+        add edx, 4
+        call print_string
+
+        jmp finish_loop
+
+
+    // ecx - pointer to char
+    printChar:
         push ebx
-        
-        mov ebx, [ebp + 8] ; Pointer to the template string
-        mov edx,  ebp
-        add edx, 12        ; Pointer to the first argument
+        push edx
 
-        ; In process loop we want to iterate over template string
-        ; and parse it char-by-char.
-        ; The idea is simple:
-        ; |
-        ; +> If we see '%', we will use the next symbol as argument type.
-        ; |
-        ; +> If we see '\0', we will stop our proccess loop, because template string is over
-        ; |
-        ; +> If we see any other character we simply gonna print it
-        ; Considering all of the above, let's understand what functions we need:
-        ; - printChr
-        ; - printStr
-        ; - printHex
-        ; - printOct
-        ; - printBin
-        ; - printDec
-        process_loop:
-            ; End of string
-            cmp byte [ebx], 0
-            je end
-            
-            ; Some argument
-            cmp byte [ebx], '%'
-            je switchcase
-            
-            ; Default
-            default_:
-                mov ecx, ebx
-                call printChr
-                jmp finish_loop
+        mov	eax, 4	    // system call number (sys_write)
+        mov	ebx, 1	    // file descriptor (stdout)
+        mov	edx, 1      // message length
+        int	0x80
 
-        switchcase:
-            add ebx, 1
-            xor eax, eax
-            mov al, byte [ebx]
-            sub eax, 'b'
-            jmp [jmp_tbl + eax * 4]
+        pop edx
+        pop ebx
+        ret
 
-            
-        handleChr:
-            mov ecx, edx ; Get current argument adress
-            add edx, 4   ; Shift current argument ptr
-            
-            call printChr
-            jmp finish_loop
-            
-            
-        handleBin:
-            mov ecx, edx
-            add edx, 4
-            
-            ; Printing default prefix (like 0b... , 0x ...)
-            PrintPrefix bin_prefix
-            
-            ; Chosing system base (2, 8, 10, 16 ... ?)
-            PrintInt 2
-            
-            jmp finish_loop
-        
-            
-        handleOct:
-            mov ecx, edx
-            add edx, 4
-            
-            PrintPrefix oct_prefix
-            
-            PrintInt 8
-            
-            jmp finish_loop
-            
-            
-        handleDec:
-            mov ecx, edx
-            add edx, 4
-            
-            PrintInt 10
-            
-            jmp finish_loop
-            
-        handleHex:
-            mov ecx, edx
-            add edx, 4
-            
-            PrintPrefix hex_prefix
-            
-            PrintInt 16
-            
-            jmp finish_loop
-
-            
-        handleStr:
-            mov ecx, [edx]
-            add edx, 4
-            call printStr
-            
-            jmp finish_loop
-            
-
-            
-        ; ecx - pointer to char
-        printChr:
-            push ebx
+    // ecx - pointer to int
+    // ebx - base
+    print_int:
+        push edx
+        mov eax, [ecx]
+        mov ecx, 0
+        .Loop:
+            mov edx, 0
+            div ebx
             push edx
-            
-            mov	eax, 4	    ;system call number (sys_write)
-            mov	ebx, 1	    ;file descriptor (stdout)
-            mov	edx, 1      ;message length
-	        int	0x80
-	        
-	        pop edx
-            pop ebx
-            ret
-            
-        ; ecx - pointer to int
-        ; ebx - base
-        printInt:
-            push edx
-            mov eax, [ecx]
-            mov ecx, 0
-            .loop:
-                mov edx, 0
-                div ebx
-                push edx
-                or edx, eax
-                jz .end_loop
-                pop edx
-                inc ecx
-                add edx, digit
-                push edx
-                jmp .loop
-            .end_loop:
-                pop edx
-            .loop_r:
-                push ecx
-                mov ecx, esp
-                add ecx, 4
-                mov ecx, [ecx]
-                mov edx, [ecx]
-                call printChr
-                pop ecx
-                pop edx
-                loop .loop_r
+            or edx, eax
+            jz .Lend_loop
             pop edx
-            ret
-            
-            
-        ; ecx - pointer to the the beginning of the string
-        printStr:
-            push ebx
+            inc ecx
+            add edx, digit
             push edx
-            .loop:
-                cmp byte [ecx], 0
-                je .end_loop
-                call printChr
-                inc ecx
-                jmp .loop
-                
-            .end_loop:
-                pop edx
-                pop ebx
-                ret
+            jmp .Loop
+        .Lend_loop:
+            pop edx
+        .Loop_r:
+            push ecx
+            mov ecx, esp
+            add ecx, 4
+            mov ecx, [ecx]
+            mov edx, [ecx]
+            call print_char
+            pop ecx
+            pop edx
+            loop .Loop_r
+        pop edx
+        ret
 
+    // ecx - pointer to the the beginning of the string
+    print_string:
+        push ebx
+        push edx
+        .Lloop:
+            cmp byte ptr [ecx], 0
+            je .Llend_loop
+            call print_char
+            inc ecx
+            jmp .Lloop
 
-        finish_loop:
-            add ebx, 1
-            jmp process_loop
-
-        end:
+        .Llend_loop:
+            pop edx
             pop ebx
-            ; Epilogue
-            mov esp, ebp
-            pop ebp
             ret
 
-section	.data
 
-hex_prefix db '0x', 0
-oct_prefix db '0o', 0
-bin_prefix db '0b', 0
+    finish_loop:
+        add ebx, 1
+        jmp process_loop
 
-digit   db  '0123456789ABCDEF',  
-msg	    db	'Hello, World! This is printf written on a%c%cembler. Different representations of %d: binary is %b, oct is %o, hex is %x :( Now this is random string %s. Thats it! ', 0
-msg1	db	'4 // chosen by an absolutely random dice ...', 0
-jmp_tbl:
-    dd handleBin, ; b - binary
-    dd handleChr, ; c - char
-    dd handleDec, ; d - decimal
-    dd default_,  ; e 
-    dd default_,  ; f
-    dd default_,  ; g
-    dd default_,  ; h
-    dd default_,  ; i
-    dd default_,  ; j
-    dd default_,  ; k
-    dd default_,  ; l
-    dd default_,  ; m
-    dd default_,  ; n
-    dd handleOct, ; o - octimal
-    dd default_,  ; p
-    dd default_,  ; q
-    dd default_,  ; r
-    dd handleStr, ; s - string
-    dd default_,  ; t
-    dd default_,  ; u
-    dd default_,  ; v
-    dd default_,  ; w
-    dd handleHex  ; x
+    end:
+
+        pop ebx
+        mov esp, ebp
+        pop ebp
+        ret
+
+        .data
+hex_prefix:          .asciz  "0x"
+bin_prefix:          .asciz  "0b"
+oct_prefix:          .asciz  "0o"
+
+digit:               .asciz  "0123456789abcdef"
+test_str:            .asciz  "Test: These numbers are equal: dec: %d, hex: %x, octal: %o, binary: %b, char: %c, now a string: %s"
+string_to_display:   .asciz  "Some string"
+
+jump_table:
+.Lprocess_binary:      .int offset process_binary  // b - bin
+.Lprocess_char:        .int offset process_char    // c - char
+.Lprocess_decimal:     .int offset process_decimal // d - decimal
+                       .int offset UNDEFINED       // e
+                       .int offset UNDEFINED       // f
+                       .int offset UNDEFINED       // g
+                       .int offset UNDEFINED       // h
+                       .int offset UNDEFINED       // i
+                       .int offset UNDEFINED       // j
+                       .int offset UNDEFINED       // k
+                       .int offset UNDEFINED       // l
+                       .int offset UNDEFINED       // m
+                       .int offset UNDEFINED       // n
+.Lprocess_octal:       .int offset process_octal   // o - octal
+                       .int offset UNDEFINED       // p
+                       .int offset UNDEFINED       // q
+                       .int offset UNDEFINED       // r
+.Lprocess_string:      .int offset process_string  // s - string
+                       .int offset UNDEFINED       // t
+                       .int offset UNDEFINED       // u
+                       .int offset UNDEFINED       // v
+                       .int offset UNDEFINED       // w
+.Lprocess_hex:         .int offset process_hex     // x - hex

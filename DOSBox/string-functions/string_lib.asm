@@ -327,6 +327,8 @@ local .loop, .end, .first, .second, .first_is_less, .second_is_less
 		jne .second			; (else check str_2[i])
 		cmp byte ptr es:[di], ah	; 	if (str_2[i] == '$'
 		jne .first_is_less		;	(else first is less)
+		
+		cmp 0, 0
 		je .end				; 	Equal
 		
 		
