@@ -172,8 +172,8 @@ local .loop
 		MACRO_START
 
 		mov ah, '$'
-		mov es, arr
-		mov di, 0
+		mov ds, arr
+		mov si, 0
 		
 .loop:		lodsb
 		cmp al, ah
@@ -212,9 +212,7 @@ local .loop, .end
 		mov es, arr_2
 		mov di, 0
 		
-.loop:		cmp ah, byte ptr es:[di]		; '$' == str_1[i]?
-		je .end
-		cmp ah, byte ptr ds:[si]		; '$' == str_2[i]?
+.loop:	cmp ah, byte ptr ds:[si]		; '$' == str_2[i]?
 		movsb
 		jne .loop
 
