@@ -232,9 +232,9 @@ test_str:            .asciz  "Test: These numbers are equal: dec: %d, hex: %x, o
 string_to_display:   .asciz  "Some string"
 
 jump_table:
-.Lprocess_binary:      .int offset process_binary  // b - bin
-.Lprocess_char:        .int offset process_char    // c - char
-.Lprocess_decimal:     .int offset process_decimal // d - decimal
+.Lprocess_binary:      .int offset process_binary  // b
+.Lprocess_char:        .int offset process_char    // c
+.Lprocess_decimal:     .int offset process_decimal // d
                        .int offset UNDEFINED       // e
                        .int offset UNDEFINED       // f
                        .int offset UNDEFINED       // g
@@ -245,13 +245,13 @@ jump_table:
                        .int offset UNDEFINED       // l
                        .int offset UNDEFINED       // m
                        .int offset UNDEFINED       // n
-.Lprocess_octal:       .int offset process_octal   // o - octal
+.Lprocess_octal:       .int offset process_octal   // o
                        .int offset UNDEFINED       // p
                        .int offset UNDEFINED       // q
                        .int offset UNDEFINED       // r
-.Lprocess_string:      .int offset process_string  // s - string
+.Lprocess_string:      .int offset process_string  // s
                        .int offset UNDEFINED       // t
                        .int offset UNDEFINED       // u
                        .int offset UNDEFINED       // v
                        .int offset UNDEFINED       // w
-.Lprocess_hex:         .int offset process_hex     // x - hex
+.Lprocess_hex:         .int offset process_hex     // x
